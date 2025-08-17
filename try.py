@@ -10,12 +10,11 @@ import plotly.graph_objects as go
 import uuid
 import concurrent.futures
 from itertools import islice
-import matplotlib.pyplot as plt
-from io import BytesIO
-import base64
+import json
+import os
 
 # Telegram configuration
-bot_token = "7756863824:AAGm11kD_R8MErGUxbUwzUGCU0F7w60WYcY"
+bot_token = "7756863824:AAHftGL47oZ8O9ZEqJUffCkNKI3krkc2Vgc"
 chat_id = "827727677"
 
 # Function to send Telegram message
@@ -33,53 +32,180 @@ def send_telegram_message(message):
     except Exception:
         pass  # Silently skip exceptions
 
-# Function to generate TradingView-style chart image
-def generate_chart_image(ticker, period="1d", interval="5m"):
-    try:
-        data = yf.Ticker(ticker).history(period=period, interval=interval)
-        if data.empty:
-            return None
-        fig = go.Figure(data=[go.Candlestick(x=data.index,
-                                            open=data['Open'],
-                                            high=data['High'],
-                                            low=data['Low'],
-                                            close=data['Close'])])
-        fig.add_hline(y=data['Close'].iloc[-1], line_dash="dash", line_color="green", annotation_text="Current Price")
-        fig.update_layout(title=f"{ticker} Chart", xaxis_title="Time", yaxis_title="Price")
-        buf = BytesIO()
-        fig.write_image(buf, format="png")
-        data = base64.b64encode(buf.getvalue()).decode()
-        return data
-    except Exception:
-        return None
-
-# Function to calculate support and resistance levels
-def calculate_support_resistance(data):
-    if data.empty or 'Close' not in data.columns:
-        return 0, 0
-    prices = data['Close'].values
-    pivot_high = np.max(prices[-10:])
-    pivot_low = np.min(prices[-10:])
-    return pivot_low, pivot_high
-
 # Updated sector details with new stock list
 sector_details = {
-    "METAL": {"index": "^CNXMETAL", "stocks": ["HINDCOPPER.NS", "JSWSTEEL.NS", "TATASTEEL.NS", "JSL.NS", "NATIONALUM.NS", "ADANIENT.NS", "JINDALSTEL.NS", "HINDALCO.NS", "SAIL.NS", "HINDZINC.NS", "APLAPOLLO.NS", "NMDC.NS", "VEDL.NS"]},
-    "PSU BANK": {"index": "^CNXPSUBANK", "stocks": ["PNB.NS", "BANKINDIA.NS", "UNIONBANK.NS", "BANKBARODA.NS", "CANBK.NS", "INDIANB.NS", "SBIN.NS"]},
-    "REALTY": {"index": "^CNXREALTY", "stocks": ["NCC.NS", "OBEROIRLTY.NS", "DLF.NS", "GODREJPROP.NS", "PHOENIXLTD.NS", "LODHA.NS", "PRESTIGE.NS", "NBCC.NS"]},
-    "ENERGY": {"index": "^CNXENERGY", "stocks": ["PETRONET.NS", "NTPC.NS", "RELIANCE.NS", "ADANIENSOL.NS", "OIL.NS", "ADANIGREEN.NS", "COALINDIA.NS", "IGL.NS", "POWERGRID.NS", "INOXWIND.NS", "ATGL.NS", "TORNTPOWER.NS", "JSWENERGY.NS", "ONGC.NS", "CESC.NS", "BDL.NS", "TATAPOWER.NS", "MAZDOCK.NS", "IOC.NS", "IREDA.NS", "CGPOWER.NS", "BPCL.NS", "SOLARINDS.NS", "BLUESTARCO.NS", "GMRAIRPORT.NS", "NHPC.NS", "SJVN.NS"]},
-    "AUTO": {"index": "^CNXAUTO", "stocks": ["BOSCHLTD.NS", "BALKRISIND.NS", "EXIDEIND.NS", "EICHERMOT.NS", "BHARATFORG.NS", "TITAGARH.NS", "TIINDIA.NS", "TATAMOTORS.NS", "UNOMINDA.NS", "TVSMOTOR.NS", "SONACOMS.NS", "M&M.NS", "HEROMOTOCO.NS", "BAJAJ-AUTO.NS", "MARUTI.NS", "MOTHERSON.NS"]},
-    "IT": {"index": "^CNXIT", "stocks": ["KPITTECH.NS", "WIPRO.NS", "CYIENT.NS", "KAYNES.NS", "TATAELXSI.NS", "TATATECH.NS", "MPHASIS.NS", "OFSS.NS", "INFY.NS", "TCS.NS", "CAMS.NS", "PERSISTENT.NS", "HCLTECH.NS", "COFORGE.NS", "HFCL.NS", "LTIM.NS", "TECHM.NS"]},
-    "PHARMA": {"index": "^CNXPHARMA", "stocks": ["PPLPHARMA.NS", "GRANULES.NS", "DIVISLAB.NS", "LAURUSLABS.NS", "TORNTPHARM.NS", "AUROPHARMA.NS", "BIOCON.NS", "LUPIN.NS", "ZYDUSLIFE.NS", "DRREDDY.NS", "GLENMARK.NS", "FORTIS.NS", "CIPLA.NS", "MANKIND.NS", "SUNPHARMA.NS", "PEL.NS", "ALKEM.NS"]},
-    "NIFTY 50": {"index": "^NIFTY50", "stocks": ["ASIANPAINT.NS", "LT.NS", "JSWSTEEL.NS", "INDUSINDBK.NS", "NTPC.NS", "EICHERMOT.NS", "AXISBANK.NS", "RELIANCE.NS", "BEL.NS", "TATASTEEL.NS", "HDFCBANK.NS", "WIPRO.NS", "BRITANNIA.NS", "BAJAJFINSV.NS", "BHARTIARTL.NS", "COALINDIA.NS", "POWERGRID.NS", "APOLLOHOSP.NS", "TATAMOTORS.NS", "BAJFINANCE.NS", "NESTLEIND.NS", "INFY.NS", "TATACONSUM.NS", "ITC.NS", "DRREDDY.NS", "ULTRACEMCO.NS", "SBILIFE.NS", "ONGC.NS", "ADANIENT.NS", "HINDUNILVR.NS", "GRASIM.NS", "TCS.NS", "ICICIBANK.NS", "KOTAKBANK.NS", "SHRIRAMFIN.NS", "M&M.NS", "HINDALCO.NS", "CIPLA.NS", "TITAN.NS", "HEROMOTOCO.NS", "SUNPHARMA.NS", "BAJAJ-AUTO.NS", "MARUTI.NS", "BPCL.NS", "HCLTECH.NS", "SBIN.NS", "ADANIPORTS.NS", "HDFCLIFE.NS", "TECHM.NS", "TRENT.NS"]},
-    "PVT BANK": {"index": "^CNXPSUBANK", "stocks": ["INDUSINDBK.NS", "AXISBANK.NS", "HDFCBANK.NS", "FEDERALBNK.NS", "BANDHANBNK.NS", "RBLBANK.NS", "ICICIBANK.NS", "KOTAKBANK.NS", "IDFCFIRSTB.NS"]},
-    "BANK": {"index": "^CNXPSUBANK", "stocks": ["INDUSINDBK.NS", "AXISBANK.NS", "HDFCBANK.NS", "PNB.NS", "BANKINDIA.NS", "FEDERALBNK.NS", "BANKBARODA.NS", "ICICIBANK.NS", "KOTAKBANK.NS", "CANBK.NS", "AUBANK.NS", "INDIANB.NS", "SBIN.NS", "IDFCFIRSTB.NS"]},
-    "FIN SERVICE": {"index": "^CNXFIN", "stocks": ["MUTHOOTFIN.NS", "JIOFIN.NS", "IIFL.NS", "HDFCAMC.NS", "RECLTD.NS", "AXISBANK.NS", "HDFCBANK.NS", "PFC.NS", "BAJAJFINSV.NS", "PAYTM.NS", "POONAWALLA.NS", "PNBHOUSING.NS", "SBICARD.NS", "POLICYBZR.NS", "BAJFINANCE.NS", "HUDCO.NS", "IRFC.NS", "LICI.NS", "LICHSGFIN.NS", "CHOLAFIN.NS", "SBILIFE.NS", "ICICIBANK.NS", "KOTAKBANK.NS", "CDSL.NS", "SHRIRAMFIN.NS", "MAXHEALTH.NS", "ICICIGI.NS", "ICICIPRULI.NS", "SBIN.NS", "ANGELONE.NS", "BSE.NS", "HDFCLIFE.NS"]},
-    "FMCG": {"index": "^CNXFMCG", "stocks": ["VBL.NS", "PATANJALI.NS", "BRITANNIA.NS", "DABUR.NS", "DMART.NS", "MARICO.NS", "NESTLEIND.NS", "TATACONSUM.NS", "ITC.NS", "HINDUNILVR.NS", "SUPREMEIND.NS", "ETERNAL.NS", "KALYANKJIL.NS", "UNITDSPR.NS", "NYKAA.NS", "COLPAL.NS", "GODREJCP.NS"]},
-    "CEMENT": {"index": "^NIFTY50", "stocks": ["AMBUJACEM.NS", "ULTRACEMCO.NS", "ACC.NS", "DALBHARAT.NS", "SHREECEM.NS"]},
-    "NIFTY MID SELECT": {"index": "^NIFTY50", "stocks": ["PIIND.NS", "HDFCAMC.NS", "BHARATFORG.NS", "AUROPHARMA.NS", "LUPIN.NS", "POLYCAB.NS", "GODREJPROP.NS", "UPL.NS", "FEDERALBNK.NS", "ASHOKLEY.NS", "VOLTAS.NS", "PAGEIND.NS", "MPHASIS.NS", "JUBLFOOD.NS", "INDHOTEL.NS", "CUMMINSIND.NS", "PERSISTENT.NS", "ASTRAL.NS", "RVNL.NS", "CONCOR.NS", "AUBANK.NS", "HINDPETRO.NS", "COFORGE.NS", "IDFCFIRSTB.NS"]},
-    "SENSEX": {"index": "^BSESN", "stocks": ["ASIANPAINT.NS", "LT.NS", "JSWSTEEL.NS", "INDUSINDBK.NS", "NTPC.NS", "AXISBANK.NS", "RELIANCE.NS", "TATASTEEL.NS", "HDFCBANK.NS", "BAJAJFINSV.NS", "BHARTIARTL.NS", "POWERGRID.NS", "TATAMOTORS.NS", "BAJFINANCE.NS", "NESTLEIND.NS", "INFY.NS", "ITC.NS", "ULTRACEMCO.NS", "HINDUNILVR.NS", "TCS.NS", "ICICIBANK.NS", "KOTAKBANK.NS", "M&M.NS", "TITAN.NS", "SUNPHARMA.NS", "MARUTI.NS", "HCLTECH.NS", "SBIN.NS", "ADANIPORTS.NS", "TECHM.NS"]}
+    "METAL": {
+        "index": "^CNXMETAL",
+        "stocks": [
+            "HINDCOPPER.NS", "JSWSTEEL.NS", "TATASTEEL.NS", "JSL.NS", "NATIONALUM.NS",
+            "ADANIENT.NS", "JINDALSTEL.NS", "HINDALCO.NS", "SAIL.NS", "HINDZINC.NS",
+            "APLAPOLLO.NS", "NMDC.NS", "VEDL.NS"
+        ]
+    },
+    "PSU BANK": {
+        "index": "^CNXPSUBANK",
+        "stocks": [
+            "PNB.NS", "BANKINDIA.NS", "UNIONBANK.NS", "BANKBARODA.NS", "CANBK.NS",
+            "INDIANB.NS", "SBIN.NS"
+        ]
+    },
+    "REALTY": {
+        "index": "^CNXREALTY",
+        "stocks": [
+            "NCC.NS", "OBEROIRLTY.NS", "DLF.NS", "GODREJPROP.NS", "PHOENIXLTD.NS",
+            "LODHA.NS", "PRESTIGE.NS", "NBCC.NS"
+        ]
+    },
+    "ENERGY": {
+        "index": "^CNXENERGY",
+        "stocks": [
+            "PETRONET.NS", "NTPC.NS", "RELIANCE.NS", "ADANIENSOL.NS", "OIL.NS",
+            "ADANIGREEN.NS", "COALINDIA.NS", "IGL.NS", "POWERGRID.NS", "INOXWIND.NS",
+            "ATGL.NS", "TORNTPOWER.NS", "JSWENERGY.NS", "ONGC.NS", "CESC.NS",
+            "BDL.NS", "TATAPOWER.NS", "MAZDOCK.NS", "IOC.NS", "IREDA.NS",
+            "CGPOWER.NS", "BPCL.NS", "SOLARINDS.NS", "BLUESTARCO.NS", "GMRAIRPORT.NS",
+            "NHPC.NS", "SJVN.NS"
+        ]
+    },
+    "AUTO": {
+        "index": "^CNXAUTO",
+        "stocks": [
+            "BOSCHLTD.NS", "BALKRISIND.NS", "EXIDEIND.NS", "EICHERMOT.NS",
+            "BHARATFORG.NS", "TITAGARH.NS", "TIINDIA.NS", "TATAMOTORS.NS",
+            "UNOMINDA.NS", "TVSMOTOR.NS", "SONACOMS.NS", "M&M.NS", "HEROMOTOCO.NS",
+            "BAJAJ-AUTO.NS", "MARUTI.NS", "MOTHERSON.NS"
+        ]
+    },
+    "IT": {
+        "index": "^CNXIT",
+        "stocks": [
+            "KPITTECH.NS", "WIPRO.NS", "CYIENT.NS", "KAYNES.NS", "TATAELXSI.NS",
+            "TATATECH.NS", "MPHASIS.NS", "OFSS.NS", "INFY.NS", "TCS.NS",
+            "CAMS.NS", "PERSISTENT.NS", "HCLTECH.NS", "COFORGE.NS", "HFCL.NS",
+            "LTIM.NS", "TECHM.NS"
+        ]
+    },
+    "PHARMA": {
+        "index": "^CNXPHARMA",
+        "stocks": [
+            "PPLPHARMA.NS", "GRANULES.NS", "DIVISLAB.NS", "LAURUSLABS.NS",
+            "TORNTPHARM.NS", "AUROPHARMA.NS", "BIOCON.NS", "LUPIN.NS",
+            "ZYDUSLIFE.NS", "DRREDDY.NS", "GLENMARK.NS", "FORTIS.NS",
+            "CIPLA.NS", "MANKIND.NS", "SUNPHARMA.NS", "PEL.NS", "ALKEM.NS"
+        ]
+    },
+    "NIFTY 50": {
+        "index": "^NIFTY50",
+        "stocks": [
+            "ASIANPAINT.NS", "LT.NS", "JSWSTEEL.NS", "INDUSINDBK.NS", "NTPC.NS",
+            "EICHERMOT.NS", "AXISBANK.NS", "RELIANCE.NS", "BEL.NS", "TATASTEEL.NS",
+            "HDFCBANK.NS", "WIPRO.NS", "BRITANNIA.NS", "BAJAJFINSV.NS",
+            "BHARTIARTL.NS", "COALINDIA.NS", "POWERGRID.NS", "APOLLOHOSP.NS",
+            "TATAMOTORS.NS", "BAJFINANCE.NS", "NESTLEIND.NS", "INFY.NS",
+            "TATACONSUM.NS", "ITC.NS", "DRREDDY.NS", "ULTRACEMCO.NS", "SBILIFE.NS",
+            "ONGC.NS", "ADANIENT.NS", "HINDUNILVR.NS", "GRASIM.NS", "TCS.NS",
+            "ICICIBANK.NS", "KOTAKBANK.NS", "SHRIRAMFIN.NS", "M&M.NS",
+            "HINDALCO.NS", "CIPLA.NS", "TITAN.NS", "HEROMOTOCO.NS", "SUNPHARMA.NS",
+            "BAJAJ-AUTO.NS", "MARUTI.NS", "BPCL.NS", "HCLTECH.NS", "SBIN.NS",
+            "ADANIPORTS.NS", "HDFCLIFE.NS", "TECHM.NS", "TRENT.NS"
+        ]
+    },
+    "PVT BANK": {
+        "index": "^CNXPSUBANK",
+        "stocks": [
+            "INDUSINDBK.NS", "AXISBANK.NS", "HDFCBANK.NS", "FEDERALBNK.NS",
+            "BANDHANBNK.NS", "RBLBANK.NS", "ICICIBANK.NS", "KOTAKBANK.NS",
+            "IDFCFIRSTB.NS"
+        ]
+    },
+    "BANK": {
+        "index": "^CNXPSUBANK",
+        "stocks": [
+            "INDUSINDBK.NS", "AXISBANK.NS", "HDFCBANK.NS", "PNB.NS", "BANKINDIA.NS",
+            "FEDERALBNK.NS", "BANKBARODA.NS", "ICICIBANK.NS", "KOTAKBANK.NS",
+            "CANBK.NS", "AUBANK.NS", "INDIANB.NS", "SBIN.NS", "IDFCFIRSTB.NS"
+        ]
+    },
+    "FIN SERVICE": {
+        "index": "^CNXFIN",
+        "stocks": [
+            "MUTHOOTFIN.NS", "JIOFIN.NS", "IIFL.NS", "HDFCAMC.NS", "RECLTD.NS",
+            "AXISBANK.NS", "HDFCBANK.NS", "PFC.NS", "BAJAJFINSV.NS", "PAYTM.NS",
+            "POONAWALLA.NS", "PNBHOUSING.NS", "SBICARD.NS", "POLICYBZR.NS",
+            "BAJFINANCE.NS", "HUDCO.NS", "IRFC.NS", "LICI.NS", "LICHSGFIN.NS",
+            "CHOLAFIN.NS", "SBILIFE.NS", "ICICIBANK.NS", "KOTAKBANK.NS",
+            "CDSL.NS", "SHRIRAMFIN.NS", "MAXHEALTH.NS", "ICICIGI.NS",
+            "ICICIPRULI.NS", "SBIN.NS", "ANGELONE.NS", "BSE.NS", "HDFCLIFE.NS"
+        ]
+    },
+    "FMCG": {
+        "index": "^CNXFMCG",
+        "stocks": [
+            "VBL.NS", "PATANJALI.NS", "BRITANNIA.NS", "DABUR.NS", "DMART.NS",
+            "MARICO.NS", "NESTLEIND.NS", "TATACONSUM.NS", "ITC.NS", "HINDUNILVR.NS",
+            "SUPREMEIND.NS", "ETERNAL.NS", "KALYANKJIL.NS", "UNITDSPR.NS",
+            "NYKAA.NS", "COLPAL.NS", "GODREJCP.NS"
+        ]
+    },
+    "CEMENT": {
+        "index": "^NIFTY50",
+        "stocks": [
+            "AMBUJACEM.NS", "ULTRACEMCO.NS", "ACC.NS", "DALBHARAT.NS", "SHREECEM.NS"
+        ]
+    },
+    "NIFTY MID SELECT": {
+        "index": "^NIFTY50",
+        "stocks": [
+            "PIIND.NS", "HDFCAMC.NS", "BHARATFORG.NS", "AUROPHARMA.NS", "LUPIN.NS",
+            "POLYCAB.NS", "GODREJPROP.NS", "UPL.NS", "FEDERALBNK.NS", "ASHOKLEY.NS",
+            "VOLTAS.NS", "PAGEIND.NS", "MPHASIS.NS", "JUBLFOOD.NS", "INDHOTEL.NS",
+            "CUMMINSIND.NS", "PERSISTENT.NS", "ASTRAL.NS", "RVNL.NS", "CONCOR.NS",
+            "AUBANK.NS", "HINDPETRO.NS", "COFORGE.NS", "IDFCFIRSTB.NS"
+        ]
+    },
+    "SENSEX": {
+        "index": "^BSESN",
+        "stocks": [
+            "ASIANPAINT.NS", "LT.NS", "JSWSTEEL.NS", "INDUSINDBK.NS", "NTPC.NS",
+            "AXISBANK.NS", "RELIANCE.NS", "TATASTEEL.NS", "HDFCBANK.NS",
+            "BAJAJFINSV.NS", "BHARTIARTL.NS", "POWERGRID.NS", "TATAMOTORS.NS",
+            "BAJFINANCE.NS", "NESTLEIND.NS", "INFY.NS", "ITC.NS", "ULTRACEMCO.NS",
+            "HINDUNILVR.NS", "TCS.NS", "ICICIBANK.NS", "KOTAKBANK.NS", "M&M.NS",
+            "TITAN.NS", "SUNPHARMA.NS", "MARUTI.NS", "HCLTECH.NS", "SBIN.NS",
+            "ADANIPORTS.NS", "TECHM.NS"
+        ]
+    }
 }
+
+# Persistence files
+BREAKOUT_FILE = 'breakout_stocks.json'
+HIGH_ACTIVITY_FILE = 'high_activity_stocks.json'
+
+# Function to load persisted data
+def load_persisted_data(file_path):
+    if os.path.exists(file_path):
+        with open(file_path, 'r') as f:
+            return json.load(f)
+    return []
+
+# Function to save persisted data
+def save_persisted_data(data, file_path):
+    with open(file_path, 'w') as f:
+        json.dump(data, f)
+
+# Function to check if new trading day
+def is_new_trading_day():
+    today = datetime.now().date()
+    if today.weekday() >= 5:  # Weekend
+        return False
+    # Check last save date from file metadata or add a timestamp in JSON
+    if os.path.exists(BREAKOUT_FILE):
+        with open(BREAKOUT_FILE, 'r') as f:
+            data = json.load(f)
+            if data and 'last_save_date' in data[0]:  # Assume we add last_save_date
+                last_date = datetime.strptime(data[0]['last_save_date'], '%Y-%m-%d').date()
+                return last_date < today
+    return True
 
 # Function to check if the market is open
 def is_market_open():
@@ -88,10 +214,11 @@ def is_market_open():
     market_close_time = now.replace(hour=15, minute=30, second=0)
     return market_open_time <= now <= market_close_time and now.weekday() < 5
 
-# Enhanced calculate_technicals function with better handling for missing data
+# Enhanced calculate_technicals function with breakout detection
 def calculate_technicals(data):
     if data.empty or 'Close' not in data.columns or 'Volume' not in data.columns or len(data) < 2:
-        return 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  # Return default values if data is insufficient
+        return 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, False, "", 0, 0  # Added support/resistance
+    
     try:
         # RSI (14)
         delta = data['Close'].diff()
@@ -127,13 +254,25 @@ def calculate_technicals(data):
         obv = pd.Series(obv, index=data.index)
         obv_val = obv.iloc[-1] if not np.isnan(obv.iloc[-1]) else 0
         
-        # Bollinger Bands (20, 2)
+        # Bollinger Bands (20, 2) for Breakout Detection, Support (Lower), Resistance (Upper)
         sma_20 = data['Close'].rolling(window=20).mean()
         std_20 = data['Close'].rolling(window=20).std()
         bb_upper = sma_20 + (std_20 * 2)
         bb_lower = sma_20 - (std_20 * 2)
         bb_upper_val = bb_upper.iloc[-1] if not np.isnan(bb_upper.iloc[-1]) else 0
         bb_lower_val = bb_lower.iloc[-1] if not np.isnan(bb_lower.iloc[-1]) else 0
+        
+        # Breakout Detection: Price breaks BB upper (resistance breakout) or lower (support breakout)
+        # Formula: Breakout if latest_price > bb_upper (Bullish Breakout) or latest_price < bb_lower (Bearish Breakout)
+        latest_price = data['Close'].iloc[-1]
+        is_breakout = False
+        breakout_type = ""
+        if latest_price > bb_upper_val:
+            is_breakout = True
+            breakout_type = "Bullish Breakout (Price > BB Upper Band)"
+        elif latest_price < bb_lower_val:
+            is_breakout = True
+            breakout_type = "Bearish Breakout (Price < BB Lower Band)"
         
         # Average True Range (ATR, 14)
         high_low = data['High'] - data['Low']
@@ -142,10 +281,6 @@ def calculate_technicals(data):
         tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
         atr = tr.rolling(window=14).mean()
         atr_val = atr.iloc[-1] if not np.isnan(atr.iloc[-1]) else 0
-        
-        # VWAP (Volume Weighted Average Price)
-        typical_price = (data['High'] + data['Low'] + data['Close']) / 3
-        vwap = (typical_price * data['Volume']).cumsum() / data['Volume'].cumsum()
         
         # Enhanced R Factor Calculation
         open_price = data['Open'].iloc[0]
@@ -166,9 +301,9 @@ def calculate_technicals(data):
         institutional_score = institutional_score if not np.isnan(institutional_score) else 0
         
         return (rsi_val, ema_20_val, ema_50_val, macd_val, signal_val, obv_val, 
-                r_factor, institutional_score, bb_upper_val, bb_lower_val)
+                r_factor, institutional_score, bb_upper_val, bb_lower_val, is_breakout, breakout_type, round(bb_lower_val, 2), round(bb_upper_val, 2))
     except Exception:
-        return 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        return 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, False, "", 0, 0
 
 # Function to fetch data for a single stock or index
 def fetch_ticker_data(ticker, period="1d", interval="5m"):
@@ -192,22 +327,41 @@ def fetch_previous_day_data(ticker):
     except Exception:
         return ticker, pd.DataFrame()
 
-# Function to fetch live sector and stock data in batches with breakout list
+# Function to get stock logo URL (using a placeholder or actual if available)
+def get_stock_logo(stock_name):
+    # Placeholder: Use a free API or static URLs; here using a sample
+    return f"https://logo.clearbit.com/{stock_name.lower()}.com"  # This may not work for all; replace with actual if needed
+
+# Function to fetch live sector and stock data in batches
 def fetch_sector_stock_data():
     fetch_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S %Z')
     sector_data = []
     stock_data = []
     top_movers = []
-    high_activity_stocks = []  # List for high activity stocks during market hours
-    breakout_stocks = []  # New list for breakout stocks
-    best_stock = None
-    best_stock_score = -float('inf')
     sector_flows = []
     period = "1d"
     interval = "5m"
     
-    # Check if market is open for filtering high activity stocks
+    # Load persisted lists
+    breakout_stocks = load_persisted_data(BREAKOUT_FILE)
+    high_activity_stocks = load_persisted_data(HIGH_ACTIVITY_FILE)
+    
+    # Check if market is open
     is_market = is_market_open()
+    
+    # If new trading day and market open, clear lists
+    if is_market and is_new_trading_day():
+        breakout_stocks = []
+        high_activity_stocks = []
+    
+    # Unique sets to avoid duplicates
+    seen_breakouts = set()
+    seen_high_activity = set()
+    
+    for item in breakout_stocks:
+        seen_breakouts.add(item['Stock'])
+    for item in high_activity_stocks:
+        seen_high_activity.add(item['Stock'])
     
     # Fetch all index data in parallel
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
@@ -229,6 +383,8 @@ def fetch_sector_stock_data():
     
     # Fetch all stock data in batches
     batch_size = 5
+    best_stock = None
+    best_stock_score = -float('inf')
     for sector, details in sector_details.items():
         max_change = 0
         top_stock = None
@@ -253,38 +409,58 @@ def fetch_sector_stock_data():
                             latest_price = stock_info['Close'].iloc[-1]
                             volume = stock_info['Volume'].sum()
                             change = ((latest_price - open_price) / open_price) * 100
-                            volume_spike = volume / stock_info['Volume'].rolling(window=20).mean().iloc[-1] if stock_info['Volume'].rolling(window=20).mean().iloc[-1] != 0 else 0
-                            price_movement = abs(change) > 2  # Significant movement threshold
                             
-                            rsi, ema_20, ema_50, macd, signal, obv, r_factor, institutional_score, bb_upper, bb_lower = calculate_technicals(stock_info)
-                            trend = "Bullish" if latest_price > ema_50 else "Bearish" if latest_price < ema_50 else "Neutral"
+                            avg_volume = stock_info['Volume'].mean()
+                            volume_spike = volume > (avg_volume * 1.5)
+                            price_movement = abs(change) > 1.5
+                            activity = "High" if volume_spike and price_movement else "Normal"
+                            trend = "Bullish" if change > 0 else "Bearish" if change < 0 else "Neutral"
+                            
+                            (rsi, ema_20, ema_50, macd, signal, obv, r_factor, 
+                             institutional_score, bb_upper, bb_lower, is_breakout, breakout_type, support, resistance) = calculate_technicals(stock_info)
+                             
+                            if np.isnan([rsi, ema_20, ema_50, macd, signal, obv]).all():
+                                continue
                             
                             stock_data.append([
                                 sector, stock.replace('.NS', ''), round(latest_price, 2),
-                                round(change, 2), volume, round(institutional_score, 2), round(r_factor, 2)
+                                round(change, 2), volume, activity, trend, round(r_factor, 2),
+                                round(institutional_score, 2)
                             ])
                             
-                            # Add to high activity stocks list if market is open and criteria met
-                            if is_market and r_factor > 7 and volume_spike > 1.5 and price_movement:
-                                high_activity_stocks.append([
-                                    sector, stock.replace('.NS', ''), round(latest_price, 2),
-                                    round(change, 2), volume, round(r_factor, 2),
-                                    round(institutional_score, 2), datetime.now().strftime('%H:%M:%S')
-                                ])
+                            stock_name = stock.replace('.NS', '')
                             
-                            # Detect breakout stocks with institutional activity
-                            support, resistance = calculate_support_resistance(stock_info)
-                            if (latest_price > resistance or latest_price < support) and institutional_score > 5 and volume_spike > 1.5:
-                                chart_image = generate_chart_image(stock)
-                                entry_candle = "Current Candle" if latest_price > resistance else "Previous Breakout Candle"
-                                stop_loss = support if latest_price > resistance else resistance
-                                target = latest_price + (resistance - support) * 1.5 if latest_price > resistance else latest_price - (support - resistance) * 1.5
-                                breakout_stocks.append([
-                                    sector, stock.replace('.NS', ''), round(latest_price, 2),
-                                    round(change, 2), volume, round(r_factor, 2),
-                                    round(institutional_score, 2), datetime.now().strftime('%H:%M:%S'),
-                                    support, resistance, entry_candle, stop_loss, target, chart_image
-                                ])
+                            # Add to breakout stocks if breakout detected and not seen
+                            if is_breakout and stock_name not in seen_breakouts:
+                                seen_breakouts.add(stock_name)
+                                detection_time = datetime.now().strftime('%H:%M:%S')
+                                breakout_stocks.append({
+                                    "Sector": sector,
+                                    "Stock": stock_name,
+                                    "Current Price": round(latest_price, 2),
+                                    "% Change": round(change, 2),
+                                    "Breakout Type": breakout_type,
+                                    "Support": support,
+                                    "Resistance": resistance,
+                                    "Detection Time": detection_time
+                                })
+                            
+                            # Add to high activity stocks list if market is open and criteria met and not seen
+                            if is_market and r_factor > 7 and volume_spike and price_movement and stock_name not in seen_high_activity:
+                                seen_high_activity.add(stock_name)
+                                detection_time = datetime.now().strftime('%H:%M:%S')
+                                high_activity_stocks.append({
+                                    "Sector": sector,
+                                    "Stock": stock_name,
+                                    "Current Price": round(latest_price, 2),
+                                    "% Change": round(change, 2),
+                                    "Volume": volume,
+                                    "R Factor": round(r_factor, 2),
+                                    "Institutional Score": round(institutional_score, 2),
+                                    "Support": support,
+                                    "Resistance": resistance,
+                                    "Detection Time": detection_time
+                                })
                             
                             sector_volume += volume
                             sector_investment_flow += (change * volume) / 1e6
@@ -294,7 +470,7 @@ def fetch_sector_stock_data():
                                 top_stock = {
                                     "sector": sector,
                                     "stock": stock,
-                                    "stock_name": stock.replace('.NS', ''),
+                                    "stock_name": stock_name,
                                     "change": round(change, 2),
                                     "latest_price": round(latest_price, 2),
                                     "volume": volume,
@@ -318,7 +494,7 @@ def fetch_sector_stock_data():
                                     best_stock_score = score
                                     best_stock = {
                                         "sector": sector,
-                                        "stock_name": stock.replace('.NS', ''),
+                                        "stock_name": stock_name,
                                         "change": round(change, 2),
                                         "latest_price": round(latest_price, 2),
                                         "trend": trend,
@@ -360,19 +536,30 @@ def fetch_sector_stock_data():
     sector_df = pd.DataFrame(sector_data, columns=["Sector", "% Change", "Current Price"])
     stock_df = pd.DataFrame(stock_data, columns=[
         "Sector", "Stock", "Current Price", "% Change", "Volume", 
-        "Institutional Activity", "R Factor"
+        "Institutional Activity", "Trend", "R Factor", "Institutional Score"
     ])
     top_movers_df = pd.DataFrame(top_movers)
     sector_flows_df = pd.DataFrame(sector_flows, columns=["Sector", "Total Volume", "Investment Flow"])
     previous_day_df = pd.DataFrame(previous_day_data, columns=["Stock", "% Change", "Close Price"])
-    high_activity_df = pd.DataFrame(high_activity_stocks, columns=[
-        "Sector", "Stock", "Current Price", "% Change", "Volume", "R Factor", "Institutional Score", "Detection Time"
-    ])
-    breakout_df = pd.DataFrame(breakout_stocks, columns=[
-        "Sector", "Stock", "Current Price", "% Change", "Volume", "R Factor",
-        "Institutional Score", "Detection Time", "Support", "Resistance",
-        "Entry Candle", "Stop Loss", "Target", "Chart Image"
-    ])
+    high_activity_df = pd.DataFrame(high_activity_stocks)
+    breakout_df = pd.DataFrame(breakout_stocks)
+    
+    # Sort by detection time descending
+    if not high_activity_df.empty:
+        high_activity_df = high_activity_df.sort_values(by="Detection Time", ascending=False)
+    if not breakout_df.empty:
+        breakout_df = breakout_df.sort_values(by="Detection Time", ascending=False)
+    
+    # Save persisted data with last save date
+    today_str = datetime.now().strftime('%Y-%m-%d')
+    breakout_stocks = breakout_df.to_dict('records')
+    high_activity_stocks = high_activity_df.to_dict('records')
+    if breakout_stocks:
+        breakout_stocks[0]['last_save_date'] = today_str
+    if high_activity_stocks:
+        high_activity_stocks[0]['last_save_date'] = today_str
+    save_persisted_data(breakout_stocks, BREAKOUT_FILE)
+    save_persisted_data(high_activity_stocks, HIGH_ACTIVITY_FILE)
     
     if best_stock:
         trade = best_stock["trade_suggestion"]
@@ -401,23 +588,6 @@ def fetch_sector_stock_data():
             f"- Expiry: {trade['expiry']}\n"
             f"**Data Fetched At**: {fetch_timestamp}\n"
         )
-        send_telegram_message(message)
-    
-    # Send breakout list to Telegram after market close
-    if not is_market_open() and not breakout_df.empty:
-        message = f"📊 *Final Breakout Stocks for {datetime.now().strftime('%Y-%m-%d')}*\n\n"
-        for _, row in breakout_df.iterrows():
-            message += (
-                f"**Stock**: {row['Stock']} ({row['Sector']})\n"
-                f"**Time**: {row['Detection Time']}\n"
-                f"**Price**: ₹{row['Current Price']:.2f}\n"
-                f"**% Change**: {row['% Change']:.2f}%\n"
-                f"**Support**: ₹{row['Support']:.2f}\n"
-                f"**Resistance**: ₹{row['Resistance']:.2f}\n"
-                f"**Entry Candle**: {row['Entry Candle']}\n"
-                f"**Stop Loss**: ₹{row['Stop Loss']:.2f}\n"
-                f"**Target**: ₹{row['Target']:.2f}\n\n"
-            )
         send_telegram_message(message)
     
     return sector_df, stock_df, top_movers_df, sector_flows_df, previous_day_df, high_activity_df, breakout_df, fetch_timestamp
@@ -470,8 +640,66 @@ def suggest_option_trade(stock, latest_price, rsi, ema_20, ema_50, macd, signal,
         "expiry": expiry
     }
 
+# Function to plot live chart for a stock
+def plot_live_chart(stock_ticker, period="1d", interval="5m"):
+    data = yf.Ticker(stock_ticker).history(period=period, interval=interval)
+    if data.empty:
+        return None
+    fig = go.Figure()
+    fig.add_trace(go.Candlestick(x=data.index,
+                                 open=data['Open'],
+                                 high=data['High'],
+                                 low=data['Low'],
+                                 close=data['Close'],
+                                 name='Candlesticks'))
+    fig.update_layout(title=f"{stock_ticker.replace('.NS', '')} Live Chart",
+                      xaxis_title="Time",
+                      yaxis_title="Price",
+                      xaxis_rangeslider_visible=True)
+    return fig
+
 # Streamlit App
-st.set_page_config(page_title="AI-Based Market Analysis Dashboard", layout="wide")
+st.set_page_config(page_title="AI-Based Market Analysis Dashboard", layout="wide", page_icon="📈")
+
+# Custom CSS for classical stock market look: White background
+st.markdown("""
+    <style>
+    /* White background */
+    .stApp {
+        background-color: white;
+    }
+    /* Sidebar and main content styling */
+    .css-1aumxhk { /* Sidebar */
+        background-color: rgba(255, 255, 255, 0.8);
+        color: black;
+    }
+    .stButton > button {
+        background-color: #4CAF50;
+        color: white;
+    }
+    /* Table and text styling for classical look */
+    table {
+        border-collapse: collapse;
+        width: 100%;
+    }
+    th, td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+    }
+    th {
+        background-color: #f2f2f2;
+    }
+    /* Logo size */
+    .stock-logo {
+        width: 20px;
+        height: 20px;
+        vertical-align: middle;
+        margin-right: 5px;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 st.title("📈 AI-Based Intraday Market Analysis Dashboard")
 
 # Show Market Status
@@ -484,23 +712,40 @@ sector_df, stock_df, top_movers_df, sector_flows_df, previous_day_df, high_activ
 # Display Timestamp
 st.sidebar.subheader(f"Data Last Updated: {fetch_timestamp}")
 
-# Overall Sector View (Treemap)
-st.subheader("🌐 Overall Sector Performance (Treemap)")
-st.write(f"Updated at: {fetch_timestamp}")
-if not sector_df.empty:
+# Sector Scope (Hierarchical Treemap with stocks colored by % change)
+st.subheader("Sector Scope")
+st.write(f"Updated at: {fetch_timestamp} (Green: Positive, Red: Negative)")
+if not stock_df.empty:
+    # Ensure Volume is positive to avoid zero-size issues
+    stock_df['Volume'] = stock_df['Volume'].clip(lower=1)
+    
+    # Compute positive and negative counts per sector
+    pos_counts = stock_df[stock_df['% Change'] > 0].groupby('Sector').size().fillna(0)
+    neg_counts = stock_df[stock_df['% Change'] < 0].groupby('Sector').size().fillna(0)
+    stock_df['Positive'] = stock_df['Sector'].map(pos_counts).fillna(0).astype(int)
+    stock_df['Negative'] = stock_df['Sector'].map(neg_counts).fillna(0).astype(int)
+    
+    # Create custom label for stocks: show % chg if |change| >= 2
+    stock_df['Label'] = np.where(
+        abs(stock_df['% Change']) >= 2,
+        stock_df['Stock'] + '<br>% chg: ' + stock_df['% Change'].astype(str) + '%',
+        stock_df['Stock']
+    )
+    
     fig = px.treemap(
-        sector_df,
-        path=['Sector'],
-        values='Current Price',
+        stock_df,
+        path=['Sector', 'Stock'],
+        values='Volume',
         color='% Change',
-        color_continuous_scale=['red', 'white', 'green'],
-        title="Sector-wise Performance Overview"
+        color_continuous_scale=['red', 'white', 'green']
     )
     fig.update_traces(
-        text=sector_df['Sector'] + "<br>" + sector_df['% Change'].astype(str) + "%",
+        text=stock_df['Label'],
+        texttemplate='%{text}',
         textposition='middle center',
         textfont=dict(size=14),
-        hovertemplate='<b>%{label}</b><br>% Change: %{color:.2f}%<br>Current Price: ₹%{value:.2f}'
+        hovertemplate='<b>%{label}</b><br>% Change: %{color:.2f}%<br>Volume: %{value:,.0f}<br>Positive Stocks: %{customdata[0]}<br>Negative Stocks: %{customdata[1]}',
+        customdata=stock_df[['Positive', 'Negative']]
     )
     fig.update_layout(margin=dict(t=50, l=0, r=0, b=0))
     st.plotly_chart(fig, use_container_width=True)
@@ -578,7 +823,7 @@ if not top_movers_df.empty:
             if trade['signal'] != "No Trade":
                 st.success(f"**Trade**: {trade['signal']} @ ₹{trade['strike_price']} (Entry: ₹{trade['entry_price']:.2f}, Expiry: {trade['expiry']})")
 
-# Display Stock-wise Analysis
+# Display Stock-wise Analysis with Logos
 st.subheader("🚀 Stock-wise Analysis")
 st.write(f"Updated at: {fetch_timestamp}")
 if not stock_df.empty:
@@ -587,22 +832,22 @@ if not stock_df.empty:
         with tab:
             sector_stocks = stock_df[stock_df['Sector'] == sector]
             sector_stocks = sector_stocks.sort_values(by="% Change", key=abs, ascending=False)
-            st.dataframe(
-                sector_stocks.style.format({
-                    "% Change": "{:.2f}%",
-                    "Current Price": "{:.2f}",
-                    "Volume": "{:,.0f}",
-                    "Institutional Activity": "{:.2f}",
-                    "R Factor": "{:.2f}"
-                }).highlight_max(subset=["% Change"], color='lightgreen')
-                .highlight_min(subset=["% Change"], color='lightcoral')
-            )
+            # Add logos to dataframe display using HTML
+            sector_stocks['Stock'] = sector_stocks['Stock'].apply(lambda x: f'<img src="{get_stock_logo(x)}" class="stock-logo">{x}')
+            st.markdown(sector_stocks.to_html(escape=False, index=False), unsafe_allow_html=True)
+
+# New Section: Live Charts
+st.subheader("📉 Live Stock Charts")
+selected_stock = st.selectbox("Select Stock for Live Chart", stock_df['Stock'].unique())
+if selected_stock:
+    chart_fig = plot_live_chart(f"{selected_stock}.NS")
+    if chart_fig:
+        st.plotly_chart(chart_fig, use_container_width=True)
 
 # Display High Activity Stocks During Market Hours
 st.subheader("🌟 High Activity Stocks During Market Hours")
 st.write(f"Updated at: {fetch_timestamp}")
 if not high_activity_df.empty:
-    high_activity_df = high_activity_df.sort_values(by="R Factor", ascending=False)
     st.dataframe(
         high_activity_df.style.format({
             "% Change": "{:.2f}%",
@@ -610,34 +855,31 @@ if not high_activity_df.empty:
             "Volume": "{:,.0f}",
             "R Factor": "{:.2f}",
             "Institutional Score": "{:.2f}",
+            "Support": "{:.2f}",
+            "Resistance": "{:.2f}",
             "Detection Time": "{}"
         }).highlight_max(subset=["R Factor"], color='lightgreen')
     )
 else:
     st.write("No high activity stocks identified during market hours yet.")
 
-# Display Breakout Stocks
-st.subheader("🚀 Breakout Stocks with Trade Plans")
+# New Section: Breakout Stocks List (Moved to last)
+st.subheader("🚨 Breakout Stocks (Live Detection with Support & Resistance)")
 st.write(f"Updated at: {fetch_timestamp}")
+st.write("Breakout Formula: Using Bollinger Bands (20 periods, 2 std dev). Bullish if Price > Upper Band; Bearish if Price < Lower Band.")
 if not breakout_df.empty:
-    breakout_df = breakout_df.sort_values(by="R Factor", ascending=False)
-    for _, row in breakout_df.iterrows():
-        with st.expander(f"{row['Sector']} - {row['Stock']} (Detected: {row['Detection Time']})"):
-            col1, col2 = st.columns(2)
-            with col1:
-                st.write(f"**Price**: ₹{row['Current Price']:.2f}")
-                st.write(f"**% Change**: {row['% Change']:.2f}%")
-                st.write(f"**Volume**: {row['Volume']:,.0f}")
-                st.write(f"**R Factor**: {row['R Factor']:.2f}")
-                st.write(f"**Institutional Score**: {row['Institutional Score']:.2f}")
-                st.write(f"**Support**: ₹{row['Support']:.2f}")
-                st.write(f"**Resistance**: ₹{row['Resistance']:.2f}")
-            with col2:
-                st.write(f"**Entry Candle**: {row['Entry Candle']}")
-                st.write(f"**Stop Loss**: ₹{row['Stop Loss']:.2f}")
-                st.write(f"**Target**: ₹{row['Target']:.2f}")
-                if row['Chart Image']:
-                    st.image(f"data:image/png;base64,{row['Chart Image']}", use_column_width=True)
+    st.dataframe(
+        breakout_df.style.format({
+            "% Change": "{:.2f}%",
+            "Current Price": "{:.2f}",
+            "Support": "{:.2f}",
+            "Resistance": "{:.2f}",
+            "Detection Time": "{}"
+        }).highlight_max(subset=["% Change"], color='lightgreen')
+        .highlight_min(subset=["% Change"], color='lightcoral')
+    )
+else:
+    st.write("No breakouts detected yet.")
 
 # Auto-refresh
 st.sidebar.header("🔄 Auto Refresh")
