@@ -15,8 +15,8 @@ from io import BytesIO
 import base64
 
 # Telegram configuration
-bot_token = "7756863824:AAGm11kD_R8MErGUxbUwzUGCU0F7w60WYcY"
-chat_id = "827727677"
+bot_token = "7756863824:AAGm11kD_R8MErGUxbUwzF7w60WYcY"
+chat_id = "8227677"
 
 # Function to send Telegram message
 def send_telegram_message(message):
@@ -644,3 +644,4 @@ st.sidebar.header("🔄 Auto Refresh")
 refresh_rate = st.sidebar.slider("Refresh Every (Seconds)", 30, 300, 60)
 time.sleep(refresh_rate)
 st.rerun()
+
